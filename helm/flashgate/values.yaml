@@ -1,0 +1,34 @@
+image:
+  repository: ghcr.io/<github-user>/flashgate
+  tag: latest
+replicaCount: 2
+profile: sentinel
+resources:
+  requests: { cpu: 250m, memory: 512Mi }
+  limits:   { cpu: "1",  memory: 768Mi }
+jvm:
+  opts: "-XX:MaxRAMPercentage=70 -XX:+UseZGC -javaagent:/otel/opentelemetry-javaagent.jar"
+otel:
+  serviceName: flashgate
+  endpoint: http://otel-collector.observability:4318
+  agentImage: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java:2.15.0
+probes:
+  readiness: { path: /actuator/health/readiness, initialDelaySeconds: 10, periodSeconds: 3 }
+  liveness:  { path: /actuator/health/liveness,  initialDelaySeconds: 30, periodSeconds: 10 }
+terminationGracePeriodSeconds: 35     # server.shutdown=graceful 30s + 여유
+pdb:
+  minAvailable: 1
+hpa:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 4
+  targetCPUUtilizationPercentage: 70
+ingress:
+  host: flash.<도메인>
+  clusterIssuer: letsencrypt-prod
+env:
+  REDIS_SENTINELS: redis-node-0.redis-headless.flashgate:26379,redis-node-1.redis-headless.flashgate:26379,redis-node-2.redis-headless.flashgate:26379
+  KAFKA_BOOTSTRAP: kafka.flashgate:9092
+  DB_URL: jdbc:mysql://mysql.flashgate:3306/flashgate
+  DB_USER: flashgate
+existingSecret: flashgate-secrets    # DB_PASSWORD 등 — SealedSecret으로 생성

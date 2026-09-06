@@ -1,0 +1,48 @@
+# cert-manager 설치 후 적용:
+#   kubectl apply -f https://github.com/cert-manager/cert-manager/releases/latest/download/cert-manager.yaml
+#   envsubst < k3s/30-cluster-issuer.yaml | kubectl apply -f -
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: ${ACME_EMAIL}
+    privateKeySecretRef: { name: letsencrypt-prod }
+    solvers:
+      - http01:
+          ingress: { class: traefik }
+---
+# 연결 확인용 — https://whoami.${DOMAIN}
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: whoami, namespace: default }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: whoami } }
+  template:
+    metadata: { labels: { app: whoami } }
+    spec:
+      containers:
+        - name: whoami
+          image: traefik/whoami:v1.10
+          resources: { requests: { cpu: 10m, memory: 16Mi }, limits: { cpu: 50m, memory: 32Mi } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: whoami, namespace: default }
+spec: { selector: { app: whoami }, ports: [{ port: 80 }] }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: whoami
+  namespace: default
+  annotations: { cert-manager.io/cluster-issuer: letsencrypt-prod }
+spec:
+  ingressClassName: traefik
+  tls: [{ hosts: ["whoami.${DOMAIN}"], secretName: whoami-tls }]
+  rules:
+    - host: whoami.${DOMAIN}
+      http: { paths: [{ path: /, pathType: Prefix, backend: { service: { name: whoami, port: { number: 80 } } } }] }

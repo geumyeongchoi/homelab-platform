@@ -1,0 +1,6 @@
+apiVersion: v2
+name: flashgate
+description: 선착순 한정수량 주문 API (Redis Lua · Kafka 아웃박스)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

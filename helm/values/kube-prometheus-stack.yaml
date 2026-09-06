@@ -1,0 +1,46 @@
+# helm install kps prometheus-community/kube-prometheus-stack -n observability -f helm/values/kube-prometheus-stack.yaml
+grafana:
+  adminPassword: ${GRAFANA_ADMIN_PASSWORD}   # envsubst 로 주입, 저장소엔 플레이스홀더만
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    annotations: { cert-manager.io/cluster-issuer: letsencrypt-prod }
+    hosts: ["grafana.${DOMAIN}"]
+    tls: [{ hosts: ["grafana.${DOMAIN}"], secretName: grafana-tls }]
+  additionalDataSources:
+    - { name: Loki,  type: loki,  url: http://loki.observability:3100,  access: proxy }
+    - { name: Tempo, type: tempo, url: http://tempo.observability:3200, access: proxy,
+        jsonData: { tracesToLogsV2: { datasourceUid: loki }, serviceMap: { datasourceUid: prometheus } } }
+  sidecar: { dashboards: { enabled: true, label: grafana_dashboard } }   # docs/dashboards/*.json → ConfigMap
+  resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { memory: 512Mi } }
+prometheus:
+  prometheusSpec:
+    retention: 7d
+    resources: { requests: { cpu: 200m, memory: 768Mi }, limits: { memory: 1.5Gi } }
+    podMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelectorNilUsesHelmValues: false
+    enableRemoteWriteReceiver: true          # OTel Collector prometheusremotewrite 수신
+    additionalScrapeConfigs:
+      - job_name: k8s-pods-annotated       # prometheus.io/scrape=true 파드(docmind·flashgate /actuator/prometheus)
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: "true"
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: "(.+)"
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: "([^:]+)(?::\\d+)?;(\\d+)"
+            replacement: "$1:$2"
+            target_label: __address__
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+            target_label: app
+alertmanager:
+  enabled: true
+  alertmanagerSpec: { resources: { requests: { cpu: 20m, memory: 64Mi } } }

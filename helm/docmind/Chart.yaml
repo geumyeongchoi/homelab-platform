@@ -1,0 +1,6 @@
+apiVersion: v2
+name: docmind
+description: 사내 문서 RAG 챗봇 (Spring AI + pgvector)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

@@ -1,0 +1,54 @@
+# 앱 저장소(docmind, flashgate)의 .github/workflows/deploy.yml 로 복사.
+# 시크릿: KUBECONFIG_B64 (k3s/10-install-k3s.sh 가 만든 값). GHCR은 GITHUB_TOKEN으로 push.
+# 변수: APP_NAME, K8S_NAMESPACE 를 저장소 variables 에 등록.
+name: deploy
+on:
+  push: { branches: [main] }
+  pull_request: { branches: [main] }
+
+permissions: { contents: read, packages: write }
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '21', cache: gradle }
+      - run: ./gradlew ktlintCheck test --no-daemon        # Testcontainers는 GitHub 러너의 Docker로 동작
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: test-report, path: build/reports/tests }
+
+  build-push:
+    needs: verify
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    outputs: { tag: '${{ steps.meta.outputs.tag }}' }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '21', cache: gradle }
+      - id: meta
+        run: echo "tag=$(date +%Y%m%d)-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+      - run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      # 앱 build.gradle.kts 에 jib 플러그인 추가: id("com.google.cloud.tools.jib") version "3.4.5"
+      - run: ./gradlew jib --image="$IMAGE:${{ steps.meta.outputs.tag }}" -Djib.to.tags=latest --no-daemon
+
+  deploy:
+    needs: build-push
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - run: |
+          mkdir -p ~/.kube && echo "${{ secrets.KUBECONFIG_B64 }}" | base64 -d > ~/.kube/config
+          kubectl -n ${{ vars.K8S_NAMESPACE }} set image deploy/${{ vars.APP_NAME }} app="$IMAGE:${{ needs.build-push.outputs.tag }}"
+          if ! kubectl -n ${{ vars.K8S_NAMESPACE }} rollout status deploy/${{ vars.APP_NAME }} --timeout=180s; then
+            echo "::error::rollout failed → rolling back"
+            kubectl -n ${{ vars.K8S_NAMESPACE }} rollout undo deploy/${{ vars.APP_NAME }}
+            exit 1
+          fi
+      - run: curl -fsS --retry 5 --retry-delay 3 "https://${{ vars.APP_NAME == 'flashgate' && 'flash' || vars.APP_NAME }}.${{ vars.DOMAIN }}/actuator/health"

@@ -1,0 +1,32 @@
+image:
+  repository: ghcr.io/<github-user>/docmind
+  tag: latest
+replicaCount: 1
+profile: public                      # 서버에는 public(OpenAI). private(Ollama)는 GPU 없는 서버에선 비권장
+resources:
+  requests: { cpu: 300m, memory: 768Mi }
+  limits:   { cpu: "1",  memory: 1Gi }
+jvm:
+  opts: "-XX:MaxRAMPercentage=70 -javaagent:/otel/opentelemetry-javaagent.jar"
+otel:
+  serviceName: docmind
+  endpoint: http://otel-collector.observability:4318
+  agentImage: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java:2.15.0
+probes:
+  readiness: { path: /actuator/health/readiness, initialDelaySeconds: 15, periodSeconds: 5 }
+  liveness:  { path: /actuator/health/liveness,  initialDelaySeconds: 40, periodSeconds: 10 }
+terminationGracePeriodSeconds: 35
+ingress:
+  host: docmind.<도메인>
+  clusterIssuer: letsencrypt-prod
+env:
+  DB_URL: jdbc:postgresql://pgvector.docmind:5432/docmind
+  DB_USER: docmind
+existingSecret: docmind-secrets      # DB_PASSWORD, OPENAI_API_KEY — SealedSecret
+postgres:
+  enabled: true
+  image: pgvector/pgvector:pg17
+  storage: 10Gi
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits:   { cpu: 500m, memory: 512Mi }

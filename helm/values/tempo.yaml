@@ -1,0 +1,8 @@
+# helm install tempo grafana/tempo -n observability -f helm/values/tempo.yaml
+tempo:
+  retention: 168h
+  receivers:
+    otlp: { protocols: { grpc: { endpoint: 0.0.0.0:4317 }, http: { endpoint: 0.0.0.0:4318 } } }
+  metricsGenerator: { enabled: true, remoteWriteUrl: http://kps-kube-prometheus-stack-prometheus.observability:9090/api/v1/write }
+persistence: { enabled: true, size: 10Gi }
+resources: { requests: { cpu: 100m, memory: 512Mi }, limits: { memory: 1Gi } }

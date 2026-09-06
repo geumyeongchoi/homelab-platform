@@ -1,0 +1,49 @@
+{
+  "title": "RED — docmind · flashgate",
+  "uid": "homelab-red",
+  "schemaVersion": 39,
+  "tags": ["homelab", "red"],
+  "time": { "from": "now-1h", "to": "now" },
+  "templating": {
+    "list": [
+      { "name": "app", "type": "query", "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": "label_values(http_server_requests_seconds_count, app)", "includeAll": true, "multi": true, "current": { "text": "All", "value": "$__all" } }
+    ]
+  },
+  "panels": [
+    { "type": "timeseries", "title": "Rate — req/s", "gridPos": { "x": 0, "y": 0, "w": 8, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "sum by (app) (rate(http_server_requests_seconds_count{app=~\"$app\"}[1m]))", "legendFormat": "{{app}}" }] },
+    { "type": "timeseries", "title": "Errors — 5xx 비율", "gridPos": { "x": 8, "y": 0, "w": 8, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "max": 1 } },
+      "targets": [{ "expr": "sum by (app) (rate(http_server_requests_seconds_count{app=~\"$app\",status=~\"5..\"}[1m])) / sum by (app) (rate(http_server_requests_seconds_count{app=~\"$app\"}[1m]))", "legendFormat": "{{app}}" }] },
+    { "type": "timeseries", "title": "Duration — p50 / p99 (ms)", "gridPos": { "x": 16, "y": 0, "w": 8, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ms" } },
+      "targets": [
+        { "expr": "1000 * histogram_quantile(0.5, sum by (le, app) (rate(http_server_requests_seconds_bucket{app=~\"$app\"}[1m])))", "legendFormat": "{{app}} p50" },
+        { "expr": "1000 * histogram_quantile(0.99, sum by (le, app) (rate(http_server_requests_seconds_bucket{app=~\"$app\"}[1m])))", "legendFormat": "{{app}} p99" }
+      ] },
+    { "type": "stat", "title": "flashgate — 예약 결과", "gridPos": { "x": 0, "y": 8, "w": 8, "h": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "sum by (outcome) (increase(flashgate_reserve_total[5m]))", "legendFormat": "{{outcome}}" }] },
+    { "type": "stat", "title": "flashgate — 서킷 상태 (redis)", "gridPos": { "x": 8, "y": 8, "w": 8, "h": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "max by (state) (resilience4j_circuitbreaker_state{name=\"redis\"})", "legendFormat": "{{state}}" }] },
+    { "type": "stat", "title": "flashgate — 재고 대사 불일치", "gridPos": { "x": 16, "y": 8, "w": 8, "h": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] } } },
+      "targets": [{ "expr": "max(flashgate_stock_mismatch)" }] },
+    { "type": "timeseries", "title": "docmind — 검색 시간 p95 / 무응답 건수", "gridPos": { "x": 0, "y": 14, "w": 12, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "1000 * histogram_quantile(0.95, sum by (le) (rate(docmind_retrieval_time_seconds_bucket[5m])))", "legendFormat": "retrieval p95 ms" },
+        { "expr": "increase(docmind_no_answer_total[5m])", "legendFormat": "no-answer / 5m" }
+      ] },
+    { "type": "timeseries", "title": "JVM heap used", "gridPos": { "x": 12, "y": 14, "w": 12, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "bytes" } },
+      "targets": [{ "expr": "sum by (app) (jvm_memory_used_bytes{area=\"heap\",app=~\"$app\"})", "legendFormat": "{{app}}" }] }
+  ]
+}

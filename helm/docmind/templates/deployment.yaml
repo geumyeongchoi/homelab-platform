@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "app.name" . }}
+  labels: {{- include "app.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  selector:
+    matchLabels: {{- include "app.selector" . | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "app.selector" . | nindent 8 }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /actuator/prometheus
+        prometheus.io/port: "8080"
+    spec:
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      initContainers:
+        - name: otel-agent
+          image: {{ .Values.otel.agentImage }}
+          command: ["cp", "/javaagent.jar", "/otel/opentelemetry-javaagent.jar"]
+          volumeMounts: [{ name: otel, mountPath: /otel }]
+      containers:
+        - name: app
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          ports: [{ name: http, containerPort: 8080 }]
+          env:
+            - { name: SPRING_PROFILES_ACTIVE, value: {{ .Values.profile | quote }} }
+            - { name: JAVA_TOOL_OPTIONS, value: {{ .Values.jvm.opts | quote }} }
+            - { name: OTEL_SERVICE_NAME, value: {{ .Values.otel.serviceName | quote }} }
+            - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: {{ .Values.otel.endpoint | quote }} }
+            - { name: OTEL_EXPORTER_OTLP_PROTOCOL, value: http/protobuf }
+            {{- range $k, $v := .Values.env }}
+            - { name: {{ $k }}, value: {{ $v | quote }} }
+            {{- end }}
+          envFrom:
+            - secretRef: { name: {{ .Values.existingSecret }} }
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+          readinessProbe:
+            httpGet: { path: {{ .Values.probes.readiness.path }}, port: http }
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+          livenessProbe:
+            httpGet: { path: {{ .Values.probes.liveness.path }}, port: http }
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+          lifecycle:
+            preStop: { exec: { command: ["sh", "-c", "sleep 5"] } }   # Ingress 엔드포인트 제거 전파 대기 → 롤링 중 에러 0
+          volumeMounts: [{ name: otel, mountPath: /otel }]
+      volumes:
+        - { name: otel, emptyDir: {} }
