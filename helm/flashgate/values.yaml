@@ -1,5 +1,5 @@
 image:
-  repository: ghcr.io/<github-user>/flashgate
+  repository: ghcr.io/geumyeongchoi/flashgate
   tag: latest
 replicaCount: 2
 profile: sentinel
