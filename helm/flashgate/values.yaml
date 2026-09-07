@@ -3,9 +3,9 @@ image:
   tag: latest
 replicaCount: 2
 profile: sentinel
-resources:
-  requests: { cpu: 250m, memory: 512Mi }
-  limits:   { cpu: "1",  memory: 768Mi }
+resources:                            # 8GB 서버 공유 기준. 벤치 시 일시적으로 상향
+  requests: { cpu: 200m, memory: 384Mi }
+  limits:   { cpu: "1",  memory: 512Mi }
 jvm:
   opts: "-XX:MaxRAMPercentage=70 -XX:+UseZGC -javaagent:/otel/opentelemetry-javaagent.jar"
 otel:
@@ -21,15 +21,32 @@ pdb:
 hpa:
   enabled: true
   minReplicas: 2
-  maxReplicas: 4
+  maxReplicas: 3                     # 8GB 서버
   targetCPUUtilizationPercentage: 70
 ingress:
   host: flash.<도메인>
   clusterIssuer: letsencrypt-prod
   tls: false                         # true = cert-manager 가 인증서 발급(Traefik 이 80/443 직접 노출할 때). false = 앞단 프록시가 TLS 종료
 env:
-  REDIS_SENTINELS: redis-node-0.redis-headless.flashgate:26379,redis-node-1.redis-headless.flashgate:26379,redis-node-2.redis-headless.flashgate:26379
+  REDIS_SENTINELS: redis-node-0.redis-headless.flashgate.svc.cluster.local:26379,redis-node-1.redis-headless.flashgate.svc.cluster.local:26379,redis-node-2.redis-headless.flashgate.svc.cluster.local:26379
   KAFKA_BOOTSTRAP: kafka.flashgate:9092
   DB_URL: jdbc:mysql://mysql.flashgate:3306/flashgate
   DB_USER: flashgate
-existingSecret: flashgate-secrets    # DB_PASSWORD 등 — SealedSecret으로 생성
+existingSecret: flashgate-secrets    # DB_PASSWORD — 서버에서 kubectl create secret (또는 SealedSecret)
+redis:
+  enabled: true
+  image: redis:7.4-alpine
+  maxmemory: 64mb
+  downAfterMs: 2000                   # 로컬 실측과 동일(README §3)
+  resources: { requests: { cpu: 50m, memory: 48Mi }, limits: { memory: 128Mi } }
+kafka:
+  enabled: true
+  image: apache/kafka:3.9.1
+  heap: "-Xms160m -Xmx160m"
+  storage: 2Gi
+  resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { memory: 448Mi } }
+mysql:
+  enabled: true
+  image: mysql:8.4
+  storage: 3Gi
+  resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { memory: 448Mi } }

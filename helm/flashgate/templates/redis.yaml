@@ -1,0 +1,90 @@
+{{- if .Values.redis.enabled }}
+# Redis master + replica×2 + Sentinel×3 (파드마다 redis + sentinel 사이드카). 호스트명 기반 발견(resolve-hostnames) 으로 파드 IP 변경에 견딘다.
+# 기동 시 Sentinel 에 현재 마스터를 물어 replicaof 를 정한다 → 재시작해도 split-brain 없음.
+apiVersion: v1
+kind: Service
+metadata: { name: redis-headless }
+spec:
+  selector: { app: redis }
+  clusterIP: None
+  publishNotReadyAddresses: true
+  ports: [{ name: redis, port: 6379 }, { name: sentinel, port: 26379 }]
+---
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: redis-scripts }
+data:
+  start-redis.sh: |
+    #!/bin/sh
+    set -e
+    ME="$(hostname).redis-headless.{{ .Release.Namespace }}.svc.cluster.local"
+    MASTER=""
+    for i in 0 1 2; do
+      H="redis-node-$i.redis-headless.{{ .Release.Namespace }}.svc.cluster.local"
+      M=$(timeout 2 redis-cli -h "$H" -p 26379 SENTINEL get-master-addr-by-name mymaster 2>/dev/null | head -1 || true)
+      [ -n "$M" ] && { MASTER="$M"; break; }
+    done
+    ARGS="--port 6379 --appendonly yes --replica-announce-ip $ME --maxmemory {{ .Values.redis.maxmemory }} --maxmemory-policy noeviction"
+    if [ -n "$MASTER" ] && [ "$MASTER" != "$ME" ]; then
+      echo "replica of sentinel-known master $MASTER"; exec redis-server $ARGS --replicaof "$MASTER" 6379
+    elif [ -n "$MASTER" ] || [ "$(hostname)" = "redis-node-0" ]; then
+      echo "starting as master"; exec redis-server $ARGS
+    else
+      echo "bootstrap replica of redis-node-0"; exec redis-server $ARGS --replicaof "redis-node-0.redis-headless.{{ .Release.Namespace }}.svc.cluster.local" 6379
+    fi
+  start-sentinel.sh: |
+    #!/bin/sh
+    set -e
+    ME="$(hostname).redis-headless.{{ .Release.Namespace }}.svc.cluster.local"
+    MASTER="redis-node-0.redis-headless.{{ .Release.Namespace }}.svc.cluster.local"
+    for i in 0 1 2; do
+      H="redis-node-$i.redis-headless.{{ .Release.Namespace }}.svc.cluster.local"
+      M=$(timeout 2 redis-cli -h "$H" -p 26379 SENTINEL get-master-addr-by-name mymaster 2>/dev/null | head -1 || true)
+      [ -n "$M" ] && { MASTER="$M"; break; }
+    done
+    cat > /data/sentinel.conf <<CONF
+    port 26379
+    sentinel resolve-hostnames yes
+    sentinel announce-hostnames yes
+    sentinel announce-ip $ME
+    sentinel monitor mymaster $MASTER 6379 2
+    sentinel down-after-milliseconds mymaster {{ .Values.redis.downAfterMs }}
+    sentinel failover-timeout mymaster 10000
+    sentinel parallel-syncs mymaster 1
+    CONF
+    exec redis-sentinel /data/sentinel.conf
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata: { name: redis-node }
+spec:
+  serviceName: redis-headless
+  replicas: 3
+  podManagementPolicy: Parallel
+  selector: { matchLabels: { app: redis } }
+  template:
+    metadata: { labels: { app: redis } }
+    spec:
+      terminationGracePeriodSeconds: 10
+      volumes:
+        - { name: scripts, configMap: { name: redis-scripts, defaultMode: 0755 } }
+        - { name: sentinel-data, emptyDir: {} }
+      containers:
+        - name: redis
+          image: {{ .Values.redis.image }}
+          command: ["/scripts/start-redis.sh"]
+          ports: [{ containerPort: 6379 }]
+          resources: {{- toYaml .Values.redis.resources | nindent 12 }}
+          volumeMounts: [{ name: scripts, mountPath: /scripts }, { name: data, mountPath: /data }]
+          readinessProbe: { exec: { command: ["redis-cli", "ping"] }, periodSeconds: 3 }
+        - name: sentinel
+          image: {{ .Values.redis.image }}
+          command: ["/scripts/start-sentinel.sh"]
+          ports: [{ containerPort: 26379 }]
+          resources: { requests: { cpu: 10m, memory: 16Mi }, limits: { memory: 48Mi } }
+          volumeMounts: [{ name: scripts, mountPath: /scripts }, { name: sentinel-data, mountPath: /data }]
+          readinessProbe: { exec: { command: ["redis-cli", "-p", "26379", "ping"] }, periodSeconds: 3 }
+  volumeClaimTemplates:
+    - metadata: { name: data }
+      spec: { accessModes: ["ReadWriteOnce"], resources: { requests: { storage: 1Gi } } }
+{{- end }}

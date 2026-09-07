@@ -6,11 +6,12 @@
 ## 1. 구성
 
 ```
-GitHub (docmind / flashgate PR 머지)
-   │ GitHub Actions: test → jib 이미지 → GHCR push → kubectl set image (SSH/kubeconfig 시크릿)
+GitHub (docmind / flashgate main push)
+   │ GitHub Actions: test → jib 이미지 → GHCR push → SSH(deploy 사용자, forced-command) → kubectl set image → 실패 시 rollout undo
    ▼
-[Linux 서버]  k3s (single node, Traefik ingress 내장)
-   ├─ cert-manager + Let's Encrypt  → *.<도메인> HTTPS
+[Linux 서버 · Ubuntu 22.04 · 4 vCPU/8 GB]  기존 Docker 서비스 14개 + Nginx Proxy Manager(80/443) 가 이미 운영 중
+   ├─ NPM (TLS 종료, Let's Encrypt) ─▶ 172.19.0.1:30080 = k3s Traefik NodePort  ← 기존 트래픽을 끊지 않고 옆에 K8s 를 붙인다
+   ├─ k3s (single node · servicelb 비활성 · 4 GB 스왑)
    ├─ ns docmind    : docmind Deployment(1) + pgvector StatefulSet
    ├─ ns flashgate  : flashgate Deployment(2, PDB minAvailable=1, HPA cpu 70%) + redis(sentinel) + kafka + mysql
    ├─ ns observability :
@@ -18,7 +19,7 @@ GitHub (docmind / flashgate PR 머지)
    │     Loki(+ Alloy 로그 수집)  ·  Tempo(트레이스)  ·  OTel Collector(OTLP 수신)
    └─ ns platform   : sealed-secrets, whoami(연결 확인)
 
-  https://docmind.<도메인>   https://flash.<도메인>   https://grafana.<도메인>
+  https://docmind.travelzero.kr   https://flash.travelzero.kr   https://grafana.travelzero.kr
 ```
 
 ## 2. 설계 판단

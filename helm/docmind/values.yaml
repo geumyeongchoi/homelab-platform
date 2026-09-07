@@ -4,8 +4,8 @@ image:
 replicaCount: 1
 profile: public                      # 서버에는 public(OpenAI). private(Ollama)는 GPU 없는 서버에선 비권장
 resources:
-  requests: { cpu: 300m, memory: 768Mi }
-  limits:   { cpu: "1",  memory: 1Gi }
+  requests: { cpu: 200m, memory: 512Mi }
+  limits:   { cpu: "1",  memory: 768Mi }
 jvm:
   opts: "-XX:MaxRAMPercentage=70 -javaagent:/otel/opentelemetry-javaagent.jar"
 otel:
@@ -23,11 +23,11 @@ ingress:
 env:
   DB_URL: jdbc:postgresql://pgvector.docmind:5432/docmind
   DB_USER: docmind
-existingSecret: docmind-secrets      # DB_PASSWORD, OPENAI_API_KEY — SealedSecret
+existingSecret: docmind-secrets      # DB_PASSWORD + OPENAI_API_KEY 또는 ANTHROPIC_API_KEY — 서버에서 kubectl create secret
 postgres:
   enabled: true
   image: pgvector/pgvector:pg17
   storage: 10Gi
   resources:
     requests: { cpu: 100m, memory: 256Mi }
-    limits:   { cpu: 500m, memory: 512Mi }
+    limits:   { cpu: 500m, memory: 384Mi }
