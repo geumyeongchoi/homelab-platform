@@ -40,6 +40,10 @@ spec:
           envFrom:
             - secretRef: { name: {{ .Values.existingSecret }} }
           resources: {{- toYaml .Values.resources | nindent 12 }}
+          startupProbe:   # JVM + OTel 에이전트 기동이 공유 서버에서 30~60초 걸릴 수 있다 → liveness 는 기동 완료 후에만
+            httpGet: { path: {{ .Values.probes.liveness.path }}, port: http }
+            periodSeconds: 5
+            failureThreshold: 36
           readinessProbe:
             httpGet: { path: {{ .Values.probes.readiness.path }}, port: http }
             initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
