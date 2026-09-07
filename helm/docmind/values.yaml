@@ -7,7 +7,7 @@ resources:
   requests: { cpu: 200m, memory: 512Mi }
   limits:   { cpu: "1",  memory: 768Mi }
 jvm:
-  opts: "-XX:MaxRAMPercentage=70 -javaagent:/otel/opentelemetry-javaagent.jar"
+  opts: "-XX:MaxRAMPercentage=60 -XX:+UseSerialGC -javaagent:/otel/opentelemetry-javaagent.jar"
 otel:
   serviceName: docmind
   endpoint: http://otel-collector.observability:4318

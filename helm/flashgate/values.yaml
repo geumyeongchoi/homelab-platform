@@ -4,10 +4,10 @@ image:
 replicaCount: 2
 profile: sentinel
 resources:                            # 8GB 서버 공유 기준. 벤치 시 일시적으로 상향
-  requests: { cpu: 200m, memory: 384Mi }
-  limits:   { cpu: "1",  memory: 512Mi }
+  requests: { cpu: 200m, memory: 512Mi }
+  limits:   { cpu: "1",  memory: 768Mi }        # 512Mi 에서 OOMKilled(ZGC + OTel 에이전트). 힙 60% ≈ 460MB
 jvm:
-  opts: "-XX:MaxRAMPercentage=70 -XX:+UseZGC -javaagent:/otel/opentelemetry-javaagent.jar"
+  opts: "-XX:MaxRAMPercentage=60 -XX:+UseSerialGC -Xss512k -javaagent:/otel/opentelemetry-javaagent.jar"   # 작은 컨테이너: ZGC 는 메모리 오버헤드가 커서 제외
 otel:
   serviceName: flashgate
   endpoint: http://otel-collector.observability:4318
