@@ -12,11 +12,17 @@ kind: Ingress
 metadata:
   name: {{ include "app.name" . }}
   annotations:
+    {{- if .Values.ingress.tls }}
     cert-manager.io/cluster-issuer: {{ .Values.ingress.clusterIssuer }}
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    {{- else }}
+    traefik.ingress.kubernetes.io/router.entrypoints: web    # TLS 는 앞단 프록시(NPM)가 종료
+    {{- end }}
 spec:
   ingressClassName: traefik
+  {{- if .Values.ingress.tls }}
   tls: [{ hosts: [{{ .Values.ingress.host | quote }}], secretName: {{ include "app.name" . }}-tls }]
+  {{- end }}
   rules:
     - host: {{ .Values.ingress.host | quote }}
       http:

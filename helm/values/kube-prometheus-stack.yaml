@@ -4,9 +4,10 @@ grafana:
   ingress:
     enabled: true
     ingressClassName: traefik
-    annotations: { cert-manager.io/cluster-issuer: letsencrypt-prod }
     hosts: ["grafana.${DOMAIN}"]
-    tls: [{ hosts: ["grafana.${DOMAIN}"], secretName: grafana-tls }]
+    # TLS 는 앞단 프록시(NPM)가 종료. Traefik 을 80/443 에 직접 노출하는 서버라면 cert-manager 주석 + tls 블록 추가
+  grafana.ini:
+    server: { root_url: "https://grafana.${DOMAIN}", domain: "grafana.${DOMAIN}" }
   additionalDataSources:
     - { name: Loki,  type: loki,  url: http://loki.observability:3100,  access: proxy }
     - { name: Tempo, type: tempo, url: http://tempo.observability:3200, access: proxy,
@@ -15,8 +16,8 @@ grafana:
   resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { memory: 512Mi } }
 prometheus:
   prometheusSpec:
-    retention: 7d
-    resources: { requests: { cpu: 200m, memory: 768Mi }, limits: { memory: 1.5Gi } }
+    retention: 5d
+    resources: { requests: { cpu: 200m, memory: 512Mi }, limits: { memory: 1Gi } }   # 8GB 서버 기준
     podMonitorSelectorNilUsesHelmValues: false
     serviceMonitorSelectorNilUsesHelmValues: false
     enableRemoteWriteReceiver: true          # OTel Collector prometheusremotewrite 수신
@@ -42,5 +43,6 @@ prometheus:
           - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
             target_label: app
 alertmanager:
-  enabled: true
-  alertmanagerSpec: { resources: { requests: { cpu: 20m, memory: 64Mi } } }
+  enabled: false                             # 8GB 서버: 알림은 Grafana 내장 alerting 사용
+kubeStateMetrics: { resources: { requests: { cpu: 10m, memory: 32Mi }, limits: { memory: 128Mi } } }
+prometheus-node-exporter: { resources: { requests: { cpu: 10m, memory: 32Mi }, limits: { memory: 64Mi } } }

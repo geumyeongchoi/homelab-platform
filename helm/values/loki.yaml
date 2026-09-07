@@ -11,7 +11,7 @@ loki:
 singleBinary:
   replicas: 1
   persistence: { size: 20Gi }
-  resources: { requests: { cpu: 100m, memory: 512Mi }, limits: { memory: 1Gi } }
+  resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { memory: 768Mi } }
 read: { replicas: 0 }
 write: { replicas: 0 }
 backend: { replicas: 0 }

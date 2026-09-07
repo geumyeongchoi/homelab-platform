@@ -1,5 +1,5 @@
 image:
-  repository: ghcr.io/geumyeongchoi/docmind
+  repository: ghcr.io/<github-user>/docmind
   tag: latest
 replicaCount: 1
 profile: public                      # 서버에는 public(OpenAI). private(Ollama)는 GPU 없는 서버에선 비권장
@@ -19,6 +19,7 @@ terminationGracePeriodSeconds: 35
 ingress:
   host: docmind.<도메인>
   clusterIssuer: letsencrypt-prod
+  tls: false                         # true = cert-manager 가 인증서 발급(Traefik 이 80/443 직접 노출할 때). false = 앞단 프록시가 TLS 종료
 env:
   DB_URL: jdbc:postgresql://pgvector.docmind:5432/docmind
   DB_USER: docmind

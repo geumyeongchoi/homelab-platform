@@ -2,12 +2,14 @@
 # 모든 변경은 저장소 파일 → 이 스크립트. 사용: DOMAIN=example.com ACME_EMAIL=me@x.com GRAFANA_ADMIN_PASSWORD=... scripts/apply.sh [platform|observability|apps|all]
 set -euo pipefail
 cd "$(dirname "$0")/.."
-: "${DOMAIN:?}" "${ACME_EMAIL:?}"
+: "${DOMAIN:?}"
 TARGET="${1:-all}"
 platform() {
-  kubectl apply -f https://github.com/cert-manager/cert-manager/releases/latest/download/cert-manager.yaml
-  kubectl -n cert-manager rollout status deploy/cert-manager-webhook --timeout=180s
-  envsubst < k3s/30-cluster-issuer.yaml | kubectl apply -f -
+  if [ "${CERT_MANAGER:-false}" = "true" ]; then    # Traefik 이 80/443 을 직접 노출할 때만. NPM 등 앞단 프록시가 TLS 를 종료하면 불필요
+    kubectl apply -f https://github.com/cert-manager/cert-manager/releases/latest/download/cert-manager.yaml
+    kubectl -n cert-manager rollout status deploy/cert-manager-webhook --timeout=180s
+    envsubst < k3s/30-cluster-issuer.yaml | kubectl apply -f -
+  fi
   kubectl apply -f https://github.com/bitnami-labs/sealed-secrets/releases/latest/download/controller.yaml
 }
 observability() {
@@ -17,6 +19,7 @@ observability() {
   helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts >/dev/null
   helm repo update >/dev/null
   envsubst < helm/values/kube-prometheus-stack.yaml | helm upgrade --install kps prometheus-community/kube-prometheus-stack -n observability -f -
+  kubectl -n observability rollout status deploy/kps-grafana --timeout=300s || true
   helm upgrade --install loki grafana/loki -n observability -f helm/values/loki.yaml
   helm upgrade --install tempo grafana/tempo -n observability -f helm/values/tempo.yaml
   helm upgrade --install otel-collector open-telemetry/opentelemetry-collector -n observability -f helm/values/otel-collector.yaml

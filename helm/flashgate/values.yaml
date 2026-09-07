@@ -1,5 +1,5 @@
 image:
-  repository: ghcr.io/geumyeongchoi/flashgate
+  repository: ghcr.io/<github-user>/flashgate
   tag: latest
 replicaCount: 2
 profile: sentinel
@@ -26,6 +26,7 @@ hpa:
 ingress:
   host: flash.<도메인>
   clusterIssuer: letsencrypt-prod
+  tls: false                         # true = cert-manager 가 인증서 발급(Traefik 이 80/443 직접 노출할 때). false = 앞단 프록시가 TLS 종료
 env:
   REDIS_SENTINELS: redis-node-0.redis-headless.flashgate:26379,redis-node-1.redis-headless.flashgate:26379,redis-node-2.redis-headless.flashgate:26379
   KAFKA_BOOTSTRAP: kafka.flashgate:9092
