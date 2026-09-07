@@ -1,5 +1,5 @@
 image:
-  repository: ghcr.io/<github-user>/flashgate
+  repository: ghcr.io/geumyeongchoi/flashgate
   tag: latest
 replicaCount: 2
 profile: sentinel
@@ -42,9 +42,9 @@ redis:
 kafka:
   enabled: true
   image: apache/kafka:3.9.1
-  heap: "-Xms160m -Xmx160m"
+  heap: "-Xms256m -Xmx256m"
   storage: 2Gi
-  resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { memory: 448Mi } }
+  resources: { requests: { cpu: 100m, memory: 320Mi }, limits: { memory: 512Mi } }
 mysql:
   enabled: true
   image: mysql:8.4

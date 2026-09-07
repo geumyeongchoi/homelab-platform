@@ -33,6 +33,8 @@ spec:
             - { name: KAFKA_TRANSACTION_STATE_LOG_MIN_ISR, value: "1" }
             - { name: KAFKA_LOG_DIRS, value: /var/lib/kafka/data }
             - { name: KAFKA_HEAP_OPTS, value: {{ .Values.kafka.heap | quote }} }
+            - { name: KAFKA_LOG_CLEANER_DEDUPE_BUFFER_SIZE, value: "16777216" }   # 기본 128MB → 작은 힙에서 LogCleaner 기동 실패
+            - { name: KAFKA_NUM_PARTITIONS, value: "3" }
           resources: {{- toYaml .Values.kafka.resources | nindent 12 }}
           volumeMounts: [{ name: data, mountPath: /var/lib/kafka/data }]
           readinessProbe: { tcpSocket: { port: 9092 }, initialDelaySeconds: 15, periodSeconds: 5 }
