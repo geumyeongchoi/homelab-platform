@@ -1,0 +1,36 @@
+{{- if .Values.ollama.enabled }}
+# API 키 없이 돌리는 private 모드용 Ollama (CPU). 첫 기동 시 모델을 pull 하므로 시간이 걸린다(bge-m3 1.2GB + chat 모델).
+apiVersion: v1
+kind: Service
+metadata: { name: ollama }
+spec: { selector: { app: ollama }, ports: [{ port: 11434 }] }
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata: { name: ollama }
+spec:
+  serviceName: ollama
+  replicas: 1
+  selector: { matchLabels: { app: ollama } }
+  template:
+    metadata: { labels: { app: ollama } }
+    spec:
+      containers:
+        - name: ollama
+          image: {{ .Values.ollama.image }}
+          ports: [{ containerPort: 11434 }]
+          env:
+            - { name: OLLAMA_KEEP_ALIVE, value: "30m" }      # 모델을 메모리에 유지(재로딩 지연 방지)
+            - { name: OLLAMA_NUM_PARALLEL, value: "1" }
+            - { name: OLLAMA_MAX_LOADED_MODELS, value: "2" }  # 임베딩 + 챗 동시 상주
+          resources: {{- toYaml .Values.ollama.resources | nindent 12 }}
+          volumeMounts: [{ name: models, mountPath: /root/.ollama }]
+          readinessProbe: { httpGet: { path: /api/tags, port: 11434 }, periodSeconds: 5 }
+          lifecycle:
+            postStart:
+              exec:
+                command: ["sh", "-c", "until ollama list >/dev/null 2>&1; do sleep 2; done; for m in {{ .Values.ollama.models | join " " }}; do ollama pull $m; done"]
+  volumeClaimTemplates:
+    - metadata: { name: models }
+      spec: { accessModes: ["ReadWriteOnce"], resources: { requests: { storage: {{ .Values.ollama.storage }} } } }
+{{- end }}

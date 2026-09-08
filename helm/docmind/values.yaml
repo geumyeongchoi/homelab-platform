@@ -2,7 +2,7 @@ image:
   repository: ghcr.io/geumyeongchoi/docmind
   tag: latest
 replicaCount: 1
-profile: public                      # 서버에는 public(OpenAI). private(Ollama)는 GPU 없는 서버에선 비권장
+profile: private                     # private = 서버 안 Ollama(API 키 불필요, CPU 라 느림·소형 모델) / public = OpenAI(OPENAI_API_KEY 필요) / claude = Anthropic
 resources:
   requests: { cpu: 200m, memory: 512Mi }
   limits:   { cpu: "1",  memory: 768Mi }
@@ -23,7 +23,18 @@ ingress:
 env:
   DB_URL: jdbc:postgresql://pgvector.docmind:5432/docmind
   DB_USER: docmind
+  OLLAMA_URL: http://ollama.docmind:11434
+  OLLAMA_CHAT_MODEL: gemma3:1b          # 8GB 공유 서버·CPU 기준. GPU/메모리가 있으면 gemma3:4b
+  OLLAMA_EMBED_MODEL: bge-m3
 existingSecret: docmind-secrets      # DB_PASSWORD + OPENAI_API_KEY 또는 ANTHROPIC_API_KEY — 서버에서 kubectl create secret
+ollama:
+  enabled: true                        # profile=private 일 때만 필요. public/claude 로 바꾸면 false
+  image: ollama/ollama:latest
+  models: ["bge-m3", "gemma3:1b"]
+  storage: 8Gi
+  resources:
+    requests: { cpu: 500m, memory: 1.5Gi }
+    limits:   { cpu: "3",  memory: 3Gi }
 postgres:
   enabled: true
   image: pgvector/pgvector:pg17
