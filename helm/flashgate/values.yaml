@@ -1,7 +1,7 @@
 image:
   repository: ghcr.io/geumyeongchoi/flashgate
   tag: latest
-replicaCount: 2
+replicaCount: 1                       # 8GB 공유 서버(docmind Ollama 동거) 기준. 부하 측정 시 2 로 올린다
 profile: sentinel
 resources:                            # 8GB 서버 공유 기준. 벤치 시 일시적으로 상향
   requests: { cpu: 200m, memory: 512Mi }
@@ -20,7 +20,7 @@ pdb:
   minAvailable: 1
 hpa:
   enabled: true
-  minReplicas: 2
+  minReplicas: 1
   maxReplicas: 3                     # 8GB 서버
   targetCPUUtilizationPercentage: 70
 ingress:

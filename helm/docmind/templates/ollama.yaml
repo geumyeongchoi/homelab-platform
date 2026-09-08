@@ -20,9 +20,9 @@ spec:
           image: {{ .Values.ollama.image }}
           ports: [{ containerPort: 11434 }]
           env:
-            - { name: OLLAMA_KEEP_ALIVE, value: "30m" }      # 모델을 메모리에 유지(재로딩 지연 방지)
+            - { name: OLLAMA_KEEP_ALIVE, value: "10m" }
             - { name: OLLAMA_NUM_PARALLEL, value: "1" }
-            - { name: OLLAMA_MAX_LOADED_MODELS, value: "2" }  # 임베딩 + 챗 동시 상주
+            - { name: OLLAMA_MAX_LOADED_MODELS, value: "1" }  # 8GB 서버: 임베딩·챗 모델을 번갈아 적재(동시 상주 시 +1GB)
           resources: {{- toYaml .Values.ollama.resources | nindent 12 }}
           volumeMounts: [{ name: models, mountPath: /root/.ollama }]
           readinessProbe: { httpGet: { path: /api/tags, port: 11434 }, periodSeconds: 5 }
