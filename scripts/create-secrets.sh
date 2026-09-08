@@ -10,8 +10,9 @@ kubectl -n flashgate get secret flashgate-secrets >/dev/null 2>&1 || \
 
 if [ -f /root/.docmind.env ]; then
   # /root/.docmind.env: OPENAI_API_KEY=... 또는 ANTHROPIC_API_KEY=...
-  kubectl -n docmind create secret generic docmind-secrets --from-literal=DB_PASSWORD="$(pw docmind-db)" --from-env-file=/root/.docmind.env \
-    --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+  # kubectl 은 --from-env-file 과 --from-literal 을 섞을 수 없다 → 합친 env 파일을 임시로 만든다
+  TMP=$(mktemp); chmod 600 "$TMP"; { echo "DB_PASSWORD=$(pw docmind-db)"; grep -E '^[A-Z_]+=' /root/.docmind.env; } > "$TMP"
+  kubectl -n docmind create secret generic docmind-secrets --from-env-file="$TMP" --dry-run=client -o yaml | kubectl apply -f - >/dev/null; rm -f "$TMP"
   echo "docmind-secrets: $(grep -oE '^[A-Z_]+' /root/.docmind.env | tr '\n' ' ')+ DB_PASSWORD"
 else
   echo "docmind: /root/.docmind.env 없음 → docmind-secrets 생략 (모델 API 키 필요)"
